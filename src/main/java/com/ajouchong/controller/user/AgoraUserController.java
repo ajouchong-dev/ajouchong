@@ -62,7 +62,7 @@ public class AgoraUserController {
             return new ApiResponse<>(0, "로그인이 필요합니다.", null);
         }
 
-        log.info(token);
+        // log.info(token);
         if (!jwtTokenProvider.validateToken(token)) {
             return new ApiResponse<>(0, "유효하지 않은 JWT 토큰입니다.", null);
         }

@@ -48,7 +48,7 @@ public class AgoraService {
 
         Agora savedPost = agoraRepository.save(agora);
 
-        return convertToAgoraResponseDto(savedPost);
+        return convertToAgoraResponseDto(savedPost, null);
     }
 
     @Transactional
@@ -59,13 +59,8 @@ public class AgoraService {
         agora.setApHitCount(agora.getApHitCount() + 1);
         agoraRepository.save(agora);
 
-        boolean likedByCurrentUser = false;
-        if (token != null){ // 사용자 좋아요 여부 확인
-            String email = jwtTokenProvider.getEmailFromToken(token);
-            likedByCurrentUser = isUserLikedAgora(postId, email);
-        }
-
-        return new AgoraResponseDto(agora, likedByCurrentUser);
+        String email = (token != null) ? jwtTokenProvider.getEmailFromToken(token) : null;
+        return convertToAgoraResponseDto(agora, email);
     }
 
     @Transactional
@@ -82,7 +77,8 @@ public class AgoraService {
     public List<AgoraResponseDto> getAllPosts() {
         List<Agora> agoras = agoraRepository.findAll(Sort.by(Sort.Direction.DESC, "createTime"));
 
-        return agoras.stream().map(this::convertToAgoraResponseDto)
+        return agoras.stream()
+                .map(agora -> new AgoraResponseDto(agora, false))
                 .collect(Collectors.toList());
     }
 
@@ -154,7 +150,13 @@ public class AgoraService {
         return result;
     }
 
-    public AgoraResponseDto convertToAgoraResponseDto(Agora agora) {
-        return new AgoraResponseDto(agora, false);
+    @Transactional
+    public AgoraResponseDto convertToAgoraResponseDto(Agora agora, String userEmail) {
+        boolean likedByCurrentUser = false;
+        if (userEmail != null) {
+            likedByCurrentUser = isUserLikedAgora(agora.getAPostId(), userEmail);
+        }
+        return new AgoraResponseDto(agora, likedByCurrentUser);
     }
+
 }
