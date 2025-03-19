@@ -17,9 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -63,7 +61,7 @@ public class NoticePostService {
 
         NoticePost savedNoticePost = noticePostRepository.save(noticePost);
 
-        return convertToResponseDto(savedNoticePost);
+        return convertToResponseDto(savedNoticePost, null);
     }
 
     @Transactional
@@ -71,7 +69,7 @@ public class NoticePostService {
         List<NoticePost> noticePosts = noticePostRepository.findAll(Sort.by(Sort.Direction.DESC, "npCreateTime"));
 
         return noticePosts.stream()
-                .map(this::convertToResponseDto)
+                .map(noticePost -> new NoticePostResponseDto(noticePost, false))
                 .collect(Collectors.toList());
     }
 
@@ -83,13 +81,8 @@ public class NoticePostService {
         noticePost.setNpHitCnt(noticePost.getNpHitCnt() + 1);
         noticePostRepository.save(noticePost);
 
-        boolean likedByCurrentUser = false;
-        if (token != null){ // 사용자 좋아요 여부 확인
-            String email = jwtTokenProvider.getEmailFromToken(token);
-            likedByCurrentUser = isUserLikedPost(id, email);
-        }
-
-        return new NoticePostResponseDto(noticePost, likedByCurrentUser);
+        String email = (token != null) ? jwtTokenProvider.getEmailFromToken(token) : null;
+        return convertToResponseDto(noticePost, email);
     }
 
     @Transactional
@@ -101,22 +94,23 @@ public class NoticePostService {
     }
 
     @Transactional
-    public boolean toggleLike(Long postId, String token) {
+    public Map<String, Object> toggleLike(Long postId, String token) {
         String email = jwtTokenProvider.getEmailFromToken(token);
         Member member = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
         Optional<NoticeLike> existingLike = noticeLikeRepository.findByMemberAndNoticePostId(member, postId);
-        boolean isLike = false;
+        boolean isLiked;
 
         if (existingLike.isPresent()) {
             noticeLikeRepository.delete(existingLike.get());
+            isLiked = false;
         } else {
             NoticeLike noticeLike = new NoticeLike();
             noticeLike.setMember(member);
             noticeLike.setNoticePostId(postId);
             noticeLikeRepository.save(noticeLike);
-            isLike = true;
+            isLiked = true;
         }
 
         // 좋아요 개수 업데이트
@@ -126,7 +120,10 @@ public class NoticePostService {
         noticePost.setNpUserLikeCnt((int) likeCount);
         noticePostRepository.save(noticePost);
 
-        return isLike;
+        Map<String, Object> result = new HashMap<>();
+        result.put("isLiked", isLiked);
+        result.put("likeCount", likeCount);
+        return result;
     }
 
     @Transactional
@@ -139,8 +136,13 @@ public class NoticePostService {
         return existingLike.isPresent();
     }
 
-    public NoticePostResponseDto convertToResponseDto(NoticePost noticePost) {
-        return new NoticePostResponseDto(noticePost, false);
+    @Transactional
+    public NoticePostResponseDto convertToResponseDto(NoticePost noticePost, String email) {
+        boolean likedByCurrentUser = false;
+        if (email != null) {
+            likedByCurrentUser = isUserLikedPost(noticePost.getNPostId(), email);
+        }
+        return new NoticePostResponseDto(noticePost, likedByCurrentUser);
     }
 
 }

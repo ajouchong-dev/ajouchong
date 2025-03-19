@@ -7,7 +7,9 @@ import com.ajouchong.service.NoticePostService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -31,15 +33,7 @@ public class NoticePostUserController {
     @GetMapping("/{id}")
     public ApiResponse<NoticePostResponseDto> getNoticePostById(
             @PathVariable Long id,
-            @RequestHeader(value = "Authorization", required = false) String token) {
-
-        if (token != null) {
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7); // "Bearer " 제거
-            } else {
-                throw new JwtTokenProvider.InvalidJwtException("유효하지 않은 Authorization 헤더 형식입니다.");
-            }
-        }
+            @CookieValue(value = "accessToken", required = false) String token) {
 
         NoticePostResponseDto post = noticePostService.getNoticePostWithHitIncrement(id, token);
 
@@ -48,8 +42,8 @@ public class NoticePostUserController {
 
 
     @PostMapping("/{id}/like")
-    public ApiResponse<Boolean> toggleLike(@PathVariable Long id,
-                                           @CookieValue(value = "accessToken", required = false) String token) {
+    public ApiResponse<Map<String, Object>> toggleLike(@PathVariable Long id,
+                                       @CookieValue(value = "accessToken", required = false) String token) {
 
         if (token == null) {
             return new ApiResponse<>(0, "로그인이 필요합니다.", null);
@@ -59,10 +53,17 @@ public class NoticePostUserController {
             return new ApiResponse<>(0, "유효하지 않은 JWT 토큰입니다.", null);
         }
 
-        boolean isLike = noticePostService.toggleLike(id, token);
-        String message = isLike ? "번 게시글 좋아요 성공" : "번 게시글 좋아요 취소 성공";
+        Map<String, Object> result = noticePostService.toggleLike(id, token);
+        boolean isLiked = (boolean) result.get("isLiked");
+        long likeCount = (long) result.get("likeCount");
 
-        return new ApiResponse<>(1, id + message, isLike);
+        String message = isLiked ? "번 게시글 좋아요 성공" : "번 게시글 좋아요 취소 성공";
+
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("isLiked", isLiked);
+        responseData.put("likeCount", likeCount);
+
+        return new ApiResponse<>(1, id + message,  responseData);
     }
 
 }
