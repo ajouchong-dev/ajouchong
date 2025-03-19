@@ -22,8 +22,9 @@ public class PartnershipResponseDto {
     private LocalDateTime psCreateTime;
     private LocalDateTime psUpdateTime;
     private List<String> imageUrls;
+    private boolean likedByCurrentMember;
 
-    public PartnershipResponseDto(Partnership partnership) {
+    public PartnershipResponseDto(Partnership partnership, boolean likedByCurrentMember) {
         this.psPostId = partnership.getPsPostId();
         this.psTitle = partnership.getPsTitle();
         this.psContent = partnership.getPsContent();
@@ -32,5 +33,6 @@ public class PartnershipResponseDto {
         this.psCreateTime = partnership.getPsCreateTime();
         this.psUpdateTime = partnership.getPsUpdateTime();
         this.imageUrls = new ArrayList<>(partnership.getImageUrls());
+        this.likedByCurrentMember = likedByCurrentMember;
     }
 }
