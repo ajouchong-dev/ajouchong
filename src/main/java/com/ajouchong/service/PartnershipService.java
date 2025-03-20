@@ -84,7 +84,7 @@ public class PartnershipService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public PartnershipResponseDto getPartnershipById(Long id, String token) {
         Partnership partnership = partnershipRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException(id + "번 게시글을 찾을 수 없습니다."));
