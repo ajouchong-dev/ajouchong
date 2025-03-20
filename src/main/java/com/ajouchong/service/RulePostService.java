@@ -32,14 +32,14 @@ public class RulePostService {
 
     @Transactional(readOnly = true)
     public List<RulePostResponseDto> getAllOfficialPosts() {
-        return rulePostRepository.findByType(RuleType.OFFICIAL).stream()
+        return rulePostRepository.findByTypeOrderByRpCreateTimeDesc(RuleType.OFFICIAL).stream()
                 .map(RulePostResponseDto::new)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public List<RulePostResponseDto> getAllDetailPosts() {
-        return rulePostRepository.findByType(RuleType.DETAIL).stream()
+        return rulePostRepository.findByTypeOrderByRpCreateTimeDesc(RuleType.DETAIL).stream()
                 .map(RulePostResponseDto::new)
                 .collect(Collectors.toList());
     }

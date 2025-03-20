@@ -1,71 +1,105 @@
 package com.ajouchong.jwt;
 
-import com.ajouchong.service.MemberDetailService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ajouchong.entity.Member;
+import com.ajouchong.repository.MemberRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.AllArgsConstructor;
-import org.springframework.security.authentication.AuthenticationManager;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 
-@AllArgsConstructor
-public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
-    private JwtTokenProvider jwtTokenProvider;
-    private MemberDetailService memberDetailService;
-    private AuthenticationManager authenticationManager;
+@RequiredArgsConstructor
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtTokenProvider jwtTokenProvider;
+    private final MemberRepository memberRepository;
 
     @Override
-    public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
-            throws AuthenticationException {
-        try {
-            String username = request.getParameter("username");
-            String password = request.getParameter("password");
+    protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-            // 사용자 이름과 비밀번호를 사용해 UsernamePasswordAuthenticationToken 생성
-            UsernamePasswordAuthenticationToken authRequest = new UsernamePasswordAuthenticationToken(username, password);
+        String token = extractToken(request);
 
-            return authenticationManager.authenticate(authRequest);
-        } catch (Exception e) {
-            throw new RuntimeException("사용자 인증에 실패했습니다.", e);
+        if (token == null) {
+            filterChain.doFilter(request, response);
+            return;
         }
+
+        try {
+            // 토큰 만료 여부 확인
+            if (jwtTokenProvider.isExpired(token)) {
+                sendErrorResponse(response, "Token has expired.");
+                return;
+            }
+
+            // 인증 정보 설정
+            setAuthentication(token);
+        } catch (Exception e) {
+            sendErrorResponse(response, "Invalid token: " + e.getMessage());
+            return;
+        }
+
+        filterChain.doFilter(request, response);
     }
 
-    @Override
-    protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response,
-                                            FilterChain chain, Authentication authResult)
-            throws IOException, ServletException {
-        UserDetails userDetails = (UserDetails) authResult.getPrincipal();
-        String username = userDetails.getUsername();
+    private String extractToken(HttpServletRequest request) {
+        String authorization = request.getHeader("Authorization");
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            return authorization.substring(7);
+        }
 
-        // JWT를 생성합니다.
-        String accessToken = jwtTokenProvider.generateToken(username);
+        return extractTokenFromCookies(request);
+    }
+
+    private String extractTokenFromCookies(HttpServletRequest request) {
+        if (request.getCookies() == null) {
+            return null;
+        }
+
+        for (Cookie cookie : request.getCookies()) {
+            if ("accessToken".equals(cookie.getName())) {
+                try {
+                    return java.net.URLDecoder.decode(cookie.getValue(), StandardCharsets.UTF_8);
+                } catch (Exception e) {
+                    System.err.println("Invalid Cookie Format: " + e.getMessage());
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
 
 
-        JwtTokenDto jwtTokenDto = JwtTokenDto.builder()
-                .grantType("Bearer")
-                .accessToken(accessToken)
-                .build();
+    private void setAuthentication(String token) {
+        String email = jwtTokenProvider.getEmailFromToken(token);
+        String role = jwtTokenProvider.getRoleFromToken(token);
 
+        Member member = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
+
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                member,
+                null,
+                Collections.singletonList(new SimpleGrantedAuthority(role))
+        );
+
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(new ObjectMapper().writeValueAsString(jwtTokenDto));
-        response.getWriter().flush();
-    }
-
-    @Override
-    protected void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
-                                              AuthenticationException failed)
-            throws IOException, ServletException {
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.getWriter().write("인증에 실패했습니다: " + failed.getMessage());
-        response.getWriter().flush();
+        response.getWriter().write("{\"error\": \"Unauthorized\", \"message\": \"" + message + "\"}");
     }
 }

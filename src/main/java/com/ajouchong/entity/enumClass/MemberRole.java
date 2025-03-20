@@ -1,14 +1,15 @@
 package com.ajouchong.entity.enumClass;
 
-import org.springframework.security.core.GrantedAuthority;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
-public enum MemberRole implements GrantedAuthority {
-    ADMIN,
-    STUDENT,
-    COUNCIL;
+@Getter
+@RequiredArgsConstructor
+public enum MemberRole{
+    ADMIN("ROLE_ADMIN", "관리자"),
+    STUDENT("ROLE_STUDENT", "학생"),
+    COUNCIL("ROLE_COUNCIL", "학생회");
 
-    @Override
-    public String getAuthority() {
-        return name();
-    }
+    private final String key;
+    private final String title;
 }

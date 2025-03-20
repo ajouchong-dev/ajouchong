@@ -2,27 +2,33 @@ package com.ajouchong.service;
 
 import com.ajouchong.dto.request.PartnershipRequestDto;
 import com.ajouchong.dto.response.PartnershipResponseDto;
-import com.ajouchong.entity.Partnership;
-import com.ajouchong.entity.PartnershipImage;
-import com.ajouchong.repository.PartnershipImageRepository;
+import com.ajouchong.entity.*;
+import com.ajouchong.jwt.JwtTokenProvider;
+import com.ajouchong.repository.MemberRepository;
+import com.ajouchong.repository.PartnershipLikeRepository;
 import com.ajouchong.repository.PartnershipRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class PartnershipService {
     private final PartnershipRepository partnershipRepository;
-    private final PartnershipImageRepository partnershipImageRepository;
+    private final PartnershipLikeRepository partnershipLikeRepository;
+    private final S3UploadService s3UploadService;
+    private final MemberRepository memberRepository;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Transactional
-    public PartnershipResponseDto savePartnership(PartnershipRequestDto requestDto){
+    public PartnershipResponseDto savePartnership(PartnershipRequestDto requestDto) throws IOException {
         Partnership partnership = new Partnership();
 
         partnership.setPsTitle(requestDto.getTitle());
@@ -30,72 +36,63 @@ public class PartnershipService {
         partnership.setPsCreateTime(LocalDateTime.now());
         partnership.setPsUpdateTime(LocalDateTime.now());
 
-        Partnership savedPartnership = partnershipRepository.save(partnership);
-
-        List<PartnershipImage> images = new ArrayList<>();
-        for (int i = 0; i < requestDto.getImageUrls().size(); i++) {
-            String imageUrl = requestDto.getImageUrls().get(i);
-            PartnershipImage image = new PartnershipImage();
-            image.setImageUrl(imageUrl);
-            image.setImageOrder(i);
-            image.setPartnership(savedPartnership);
-            images.add(image);
+        List<String> imageUrls = new ArrayList<>();
+        if (requestDto.getImageFiles() != null && !requestDto.getImageFiles().isEmpty()) {
+            for (MultipartFile file : requestDto.getImageFiles()) {
+                String image = s3UploadService.saveFile(file); // S3에 업로드 후 URL 반환
+                imageUrls.add(image);
+            }
         }
 
-        partnershipImageRepository.saveAll(images);
+        partnership.setImageUrls(imageUrls);
+        Partnership savedPartnership = partnershipRepository.save(partnership);
 
-        List<String> imageUrls = images.stream().map(PartnershipImage::getImageUrl).collect(Collectors.toList());
-        return new PartnershipResponseDto(
-                savedPartnership.getPsPostId(),
-                savedPartnership.getPsTitle(),
-                savedPartnership.getPsContent(),
-                savedPartnership.getPsUserLikeCnt(),
-                savedPartnership.getPsHitCnt(),
-                savedPartnership.getPsCreateTime(),
-                savedPartnership.getPsUpdateTime(),
-                imageUrls
-        );
+        return convertToPsDto(savedPartnership, null);
+    }
+
+//    @Transactional
+//    public PartnershipResponseDto changePartnership(Long id, PartnershipRequestDto requestDto) {
+//        Partnership partnership = partnershipRepository.findById(id)
+//                .orElseThrow(() -> new RuntimeException(id + "번 게시글을 찾을 수 없습니다."));
+//
+//        partnership.setPsTitle(requestDto.getTitle());
+//        partnership.setPsContent(requestDto.getContent());
+//        partnership.setPsUpdateTime(LocalDateTime.now());
+//
+//        List<PartnershipImage> existingImages = partnership.getImages();
+//
+//        existingImages.clear();
+//
+//        for (int i = 0; i < requestDto.getImageUrls().size(); i++) {
+//            String imageUrl = requestDto.getImageUrls().get(i);
+//            PartnershipImage newImage = new PartnershipImage();
+//            newImage.setImageUrl(imageUrl);
+//            newImage.setImageOrder(i);
+//            newImage.setPartnership(partnership);
+//            existingImages.add(newImage);
+//        }
+//
+//        partnershipRepository.save(partnership);
+//        return convertToDto(partnership);
+//    }
+
+    public List<PartnershipResponseDto> getLatestPartnerships() {
+        List<Partnership> partnerships = partnershipRepository.findAll(Sort.by(Sort.Direction.DESC, "psCreateTime"));
+
+        return partnerships.stream()
+                .map(partnership -> new PartnershipResponseDto(partnership, false))
+                .collect(Collectors.toList());
     }
 
     @Transactional
-    public PartnershipResponseDto changePartnership(Long id, PartnershipRequestDto requestDto) {
+    public PartnershipResponseDto getPartnershipById(Long id, String token) {
         Partnership partnership = partnershipRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException(id + "번 게시글을 찾을 수 없습니다."));
 
-        partnership.setPsTitle(requestDto.getTitle());
-        partnership.setPsContent(requestDto.getContent());
-        partnership.setPsUpdateTime(LocalDateTime.now());
+        partnership.setPsHitCnt(partnership.getPsHitCnt() + 1);
+        String email = (token != null) ? jwtTokenProvider.getEmailFromToken(token) : null;
 
-        List<PartnershipImage> existingImages = partnership.getImages();
-
-        existingImages.clear();
-
-        for (int i = 0; i < requestDto.getImageUrls().size(); i++) {
-            String imageUrl = requestDto.getImageUrls().get(i);
-            PartnershipImage newImage = new PartnershipImage();
-            newImage.setImageUrl(imageUrl);
-            newImage.setImageOrder(i);
-            newImage.setPartnership(partnership);
-            existingImages.add(newImage);
-        }
-
-        partnershipRepository.save(partnership);
-        return convertToDto(partnership);
-    }
-
-    @Transactional(readOnly = true)
-    public List<PartnershipResponseDto> getAllPartnerships() {
-        List<Partnership> partnerships = partnershipRepository.findAll();
-
-        return partnerships.stream().map(this::convertToDto).collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public PartnershipResponseDto getPartnershipById(Long id) {
-        Partnership partnership = partnershipRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException(id + "번 게시글을 찾을 수 없습니다."));
-
-        return convertToDto(partnership);
+        return convertToPsDto(partnership, email);
     }
 
     @Transactional
@@ -104,37 +101,54 @@ public class PartnershipService {
     }
 
     @Transactional
-    public void increaseLikeCount(Long id) {
+    public Map<String, Object> togglePsLike(Long id, String token) {
+        String email = jwtTokenProvider.getEmailFromToken(token);
+        Member member = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        Optional<PartnershipLke> exLike = partnershipLikeRepository.findByMemberAndPsPostId(member, id);
+        boolean isLiked;
+
+        if (exLike.isPresent()) {
+            partnershipLikeRepository.delete(exLike.get());
+            isLiked = false;
+        } else {
+            PartnershipLke partnershipLike = new PartnershipLke();
+            partnershipLike.setMember(member);
+            partnershipLike.setPsPostId(id);
+            partnershipLikeRepository.save(partnershipLike);
+            isLiked = true;
+        }
+
+        long likeCount = partnershipLikeRepository.countByPsPostId(id);
         Partnership partnership = partnershipRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException(id + "번 게시글을 찾을 수 없습니다."));
-        partnership.setPsUserLikeCnt(partnership.getPsUserLikeCnt() + 1);
-
+        partnership.setPsUserLikeCnt((int) likeCount);
         partnershipRepository.save(partnership);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("isLiked", isLiked);
+        result.put("likeCount", likeCount);
+        return result;
     }
 
     @Transactional
-    public void increaseHitCount(Long id) {
-        Partnership partnership = partnershipRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException(id + "번 게시글을 찾을 수 없습니다."));
-        partnership.setPsHitCnt(partnership.getPsHitCnt() + 1);
+    public boolean isUserLikedPartnership(Long psPostId, String email) {
+        Member member = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-        partnershipRepository.save(partnership);
+        Optional<PartnershipLke> existingLike = partnershipLikeRepository.findByMemberAndPsPostId(member, psPostId);
+
+        return existingLike.isPresent();
     }
 
-    private PartnershipResponseDto convertToDto(Partnership partnership) {
-        List<String> imageUrls = partnership.getImages().stream()
-                .map(PartnershipImage::getImageUrl)
-                .collect(Collectors.toList());
+    @Transactional
+    public PartnershipResponseDto convertToPsDto(Partnership partnership, String email) {
+        boolean likedByCurrentUser = false;
+        if (email != null) {
+            likedByCurrentUser = isUserLikedPartnership(partnership.getPsPostId(), email);
+        }
 
-        return new PartnershipResponseDto(
-                partnership.getPsPostId(),
-                partnership.getPsTitle(),
-                partnership.getPsContent(),
-                partnership.getPsUserLikeCnt(),
-                partnership.getPsHitCnt(),
-                partnership.getPsCreateTime(),
-                partnership.getPsUpdateTime(),
-                imageUrls
-        );
+        return new PartnershipResponseDto(partnership, likedByCurrentUser);
     }
 }

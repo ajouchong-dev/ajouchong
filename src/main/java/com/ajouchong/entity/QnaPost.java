@@ -1,21 +1,30 @@
 package com.ajouchong.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Getter
-@Setter
+@Getter  @Setter
+@RequiredArgsConstructor
 public class QnaPost {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long qPostId;
 
+    @NotNull
+    private String qpAuthor;
+
+    @NotNull
     private String qpTitle;
+
+    @NotNull
+    @Column(columnDefinition = "TEXT")
     private String qpContent;
 
     private boolean isReplied = false;
@@ -48,8 +57,4 @@ public class QnaPost {
         this.qpUserLikeCnt++;
     }
 
-    public void setAnswer(Answer answer) {
-        this.answer = answer;
-        this.isReplied = true;
-    }
 }

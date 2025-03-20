@@ -19,7 +19,7 @@ bin/
 !**/src/test/**/bin/
 
 ### IntelliJ IDEA ###
-.idea
+.idea/
 *.iws
 *.iml
 *.ipr
@@ -40,3 +40,10 @@ out/
 #propertise
 /src/main/resources/application-prod.yml
 /src/main/resources/secure.properties
+
+#img
+./img
+./img/**
+
+/src/main/resources/templates/
+img/

@@ -1,124 +1,149 @@
 package com.ajouchong.service;
 
+import com.ajouchong.dto.request.NoticePostRequestDto;
 import com.ajouchong.dto.response.NoticePostResponseDto;
-import com.ajouchong.dto.request.NoticePostUploadRequestDto;
 import com.ajouchong.entity.Member;
+import com.ajouchong.entity.NoticeLike;
 import com.ajouchong.entity.NoticePost;
-import com.ajouchong.entity.NoticePostImage;
 import com.ajouchong.jwt.JwtTokenProvider;
 import com.ajouchong.repository.MemberRepository;
-import com.ajouchong.repository.NoticePostImageRepository;
+import com.ajouchong.repository.NoticeLikeRepository;
 import com.ajouchong.repository.NoticePostRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.IOException;
+import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NoticePostService {
+
     private final MemberRepository memberRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final NoticePostRepository noticePostRepository;
-    private final NoticePostImageRepository noticePostImageRepository;
+    private final S3UploadService s3UploadService;
+    private final NoticeLikeRepository noticeLikeRepository;
 
     @Transactional
-    public NoticePostResponseDto saveNoticePost(NoticePostUploadRequestDto dto, String token) {
+    public NoticePostResponseDto saveNoticePost(NoticePostRequestDto requestDto, String token) throws IOException {
+        Member author = null;
 
-        String email = jwtTokenProvider.getUserEmailFromToken(token);
+        // 로그인된 사용자 정보 추출 (토큰이 있을 경우에만)
+        if (token != null && !token.isBlank()) {
+            try {
+                String email = jwtTokenProvider.getEmailFromToken(token);
+                author = memberRepository.findByEmail(email)
+                        .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+            } catch (Exception e) {
+                log.debug("err");
+            }
+        }
 
-        Member author = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+        // 이미지 파일 처리
+        List<String> imageUrls = new ArrayList<>();
+        if (requestDto.getImageFiles() != null && !requestDto.getImageFiles().isEmpty()) {
+            for (MultipartFile file : requestDto.getImageFiles()) {
+                String image = s3UploadService.saveFile(file); // S3에 업로드 후 URL 반환
+                imageUrls.add(image);
+            }
+        }
 
-        NoticePost noticePost = new NoticePost();
+        NoticePost noticePost = requestDto.createNoticePost(imageUrls);
+        noticePost.setImageUrls(imageUrls);
         noticePost.setAuthor(author);
-        noticePost.setNpTitle(dto.getTitle());
-        noticePost.setNpContent(dto.getContent());
-        noticePost.setNpCreateTime(LocalDateTime.now());
-        noticePost.setNpUpdateTime(LocalDateTime.now());
 
         NoticePost savedNoticePost = noticePostRepository.save(noticePost);
 
-
-        List<NoticePostImage> images = new ArrayList<>();
-        for (int i = 0; i < dto.getImageUrls().size(); i++) {
-            String imageUrl = dto.getImageUrls().get(i);
-            NoticePostImage image = new NoticePostImage();
-            image.setImageUrl(imageUrl);
-            image.setImageOrder(i);
-            image.setNoticePost(savedNoticePost);
-            images.add(image);
-        }
-
-        noticePostImageRepository.saveAll(images);
-
-        List<String> imageUrls = images.stream().map(NoticePostImage::getImageUrl).collect(Collectors.toList());
-        return new NoticePostResponseDto(
-                savedNoticePost.getNPostId(),
-                savedNoticePost.getNpTitle(),
-                savedNoticePost.getNpContent(),
-                savedNoticePost.getNpUserLikeCnt(),
-                savedNoticePost.getNpHitCnt(),
-                savedNoticePost.getNpCreateTime(),
-                savedNoticePost.getNpUpdateTime(),
-                imageUrls
-        );
+        return convertToResponseDto(savedNoticePost, null);
     }
 
-    @Transactional(readOnly = true)
-    public List<NoticePostResponseDto> getAllNoticePosts() {
-        List<NoticePost> posts = noticePostRepository.findAll();
+    @Transactional
+    public List<NoticePostResponseDto> getLatestNoticePosts() {
+        List<NoticePost> noticePosts = noticePostRepository.findAll(Sort.by(Sort.Direction.DESC, "npCreateTime"));
 
-        return posts.stream().map(this::convertToDto).collect(Collectors.toList());
+        return noticePosts.stream()
+                .map(noticePost -> new NoticePostResponseDto(noticePost, false))
+                .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
-    public NoticePostResponseDto getNoticePostById(Long id) {
-        NoticePost post = noticePostRepository.findById(id)
+    @Transactional
+    public NoticePostResponseDto getNoticePostWithHitIncrement(Long id, String token) {
+        NoticePost noticePost = noticePostRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException(id + "번 게시글을 찾을 수 없습니다."));
 
-        return convertToDto(post);
+        noticePost.setNpHitCnt(noticePost.getNpHitCnt() + 1);
+        noticePostRepository.save(noticePost);
+
+        String email = (token != null) ? jwtTokenProvider.getEmailFromToken(token) : null;
+        return convertToResponseDto(noticePost, email);
     }
 
     @Transactional
     public void deleteNoticePost(Long id) {
+        if (!noticePostRepository.existsById(id)) {
+            throw new RuntimeException(id + "번 게시글을 찾을 수 없습니다.");
+        }
         noticePostRepository.deleteById(id);
     }
 
     @Transactional
-    public void increaseLikeCount(Long id) {
-        NoticePost noticePost = noticePostRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException(id + "번 게시글을 찾을 수 없습니다."));
-        noticePost.setNpUserLikeCnt(noticePost.getNpUserLikeCnt() + 1);
+    public Map<String, Object> toggleLike(Long postId, String token) {
+        String email = jwtTokenProvider.getEmailFromToken(token);
+        Member member = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        Optional<NoticeLike> existingLike = noticeLikeRepository.findByMemberAndNoticePostId(member, postId);
+        boolean isLiked;
+
+        if (existingLike.isPresent()) {
+            noticeLikeRepository.delete(existingLike.get());
+            isLiked = false;
+        } else {
+            NoticeLike noticeLike = new NoticeLike();
+            noticeLike.setMember(member);
+            noticeLike.setNoticePostId(postId);
+            noticeLikeRepository.save(noticeLike);
+            isLiked = true;
+        }
+
+        // 좋아요 개수 업데이트
+        long likeCount = noticeLikeRepository.countByNoticePostId(postId);
+        NoticePost noticePost = noticePostRepository.findById(postId)
+                .orElseThrow(() -> new RuntimeException(postId + "번 게시글을 찾을 수 없습니다."));
+        noticePost.setNpUserLikeCnt((int) likeCount);
         noticePostRepository.save(noticePost);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("isLiked", isLiked);
+        result.put("likeCount", likeCount);
+        return result;
     }
 
     @Transactional
-    public void increaseHitCount(Long id) {
-        NoticePost noticePost = noticePostRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException(id + "번 게시글을 찾을 수 없습니다."));
-        noticePost.setNpHitCnt(noticePost.getNpHitCnt() + 1);
-        noticePostRepository.save(noticePost);
+    public boolean isUserLikedPost(Long postId, String userEmail) {
+        Member member = memberRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        Optional<NoticeLike> existingLike = noticeLikeRepository.findByMemberAndNoticePostId(member, postId);
+
+        return existingLike.isPresent();
     }
 
-    private NoticePostResponseDto convertToDto(NoticePost noticePost) {
-        List<String> imageUrls = noticePost.getImages().stream()
-                .map(NoticePostImage::getImageUrl)
-                .collect(Collectors.toList());
-
-        return new NoticePostResponseDto(
-                noticePost.getNPostId(),
-                noticePost.getNpTitle(),
-                noticePost.getNpContent(),
-                noticePost.getNpUserLikeCnt(),
-                noticePost.getNpHitCnt(),
-                noticePost.getNpCreateTime(),
-                noticePost.getNpUpdateTime(),
-                imageUrls
-        );
+    @Transactional
+    public NoticePostResponseDto convertToResponseDto(NoticePost noticePost, String email) {
+        boolean likedByCurrentUser = false;
+        if (email != null) {
+            likedByCurrentUser = isUserLikedPost(noticePost.getNPostId(), email);
+        }
+        return new NoticePostResponseDto(noticePost, likedByCurrentUser);
     }
+
 }
+

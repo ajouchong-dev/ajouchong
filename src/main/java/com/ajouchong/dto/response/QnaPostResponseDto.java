@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 @Getter @Setter
 public class QnaPostResponseDto {
     private Long qPostId;
+    private String qpAuthor;
     private String qpTitle;
     private String qpContent;
     private boolean isReplied = false;
@@ -16,19 +17,12 @@ public class QnaPostResponseDto {
     private int qpHitCnt;
     private LocalDateTime qpCreateTime;
     private LocalDateTime qpUpdateTime;
-    private AnswerDto answer;
+    private AnswerResponseDto answer;
+    private boolean likedByCurrentMember;
 
-    @Getter
-    @Setter
-    public static class AnswerDto {
-        private Long answerId;
-        private String content;
-        private LocalDateTime createTime;
-        private LocalDateTime updateTime;
-    }
-
-    public QnaPostResponseDto(QnaPost post) {
+    public QnaPostResponseDto(QnaPost post, boolean likedByCurrentMember) {
         this.qPostId = post.getQPostId();
+        this.qpAuthor = post.getQpAuthor();
         this.qpTitle = post.getQpTitle();
         this.qpContent = post.getQpContent();
         this.isReplied = post.isReplied();
@@ -36,7 +30,14 @@ public class QnaPostResponseDto {
         this.qpHitCnt = post.getQpHitCnt();
         this.qpCreateTime = post.getQpCreateTime();
         this.qpUpdateTime = post.getQpUpdateTime();
-        this.answer = new AnswerDto();
+        this.likedByCurrentMember = likedByCurrentMember;
+
+        if (post.getAnswer() != null) {
+            this.answer = new AnswerResponseDto(post.getAnswer());
+        }
+        else {
+            this.answer = null;
+        }
 
     }
 }

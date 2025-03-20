@@ -2,19 +2,21 @@ package com.ajouchong.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Getter @Setter
+@RequiredArgsConstructor
 public class Answer {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long answerId;
 
     @OneToOne
-    @JoinColumn(name = "qPostId", referencedColumnName = "qPostId")
+    @JoinColumn(name = "qPostId", nullable = false)
     private QnaPost qnaPost;
 
     private String content;

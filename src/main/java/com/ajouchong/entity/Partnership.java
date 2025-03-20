@@ -17,16 +17,20 @@ public class Partnership {
     private Long psPostId;
 
     private String psTitle;
+
+    @Column(columnDefinition = "TEXT")
     private String psContent;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "partner_images", joinColumns = @JoinColumn(name = "psPostId"))
+    @Column(name = "image_url")
+    private List<String> imageUrls = new ArrayList<>(); // S3에 저장된 이미지 URL 리스트
 
     private int psUserLikeCnt = 0;
     private int psHitCnt = 0;
 
     private LocalDateTime psCreateTime;
     private LocalDateTime psUpdateTime;
-
-    @OneToMany(mappedBy = "partnership", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<PartnershipImage> images = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {
