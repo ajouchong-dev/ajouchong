@@ -10,8 +10,6 @@ import com.ajouchong.repository.MemberRepository;
 import com.ajouchong.service.NoticePostService;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
-
 @RestController
 @RequestMapping("api/admin/notice")
 public class NoticePostAdminController {
@@ -25,51 +23,38 @@ public class NoticePostAdminController {
         this.memberRepository = memberRepository;
     }
 
-//    @PostMapping
-//    public ApiResponse<NoticePostResponseDto> uploadNoticePost(
-//            @ModelAttribute NoticePostAddFormDto requestDto,
-//            @RequestHeader("Authorization") String authorizationHeader) throws IOException {
-//
-//        String token = authorizationHeader.substring(7);
-//        NoticePostRequestDto noticePostRequestDto = requestDto.createNoticePostDto(jwtTokenProvider.getUserFromToken(token));
-//        NoticePostResponseDto savedNoticePost = noticePostService.saveNoticePost(noticePostRequestDto, token);
-//
-//        return new ApiResponse<>(1, "게시글 업로드 성공", savedNoticePost);
-//    }
-
     @PostMapping
     public ApiResponse<NoticePostResponseDto> uploadNoticePost(
             @ModelAttribute NoticePostAddFormDto requestDto,
-            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) throws IOException {
+            @CookieValue(value = "accessToken", required = false) String token) {
 
-        String token = null;
-        Member member = null;
-
-        // Authorization 헤더가 존재하면 토큰 처리
-        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-            token = authorizationHeader.substring(7);
-            try {
-                String email = jwtTokenProvider.getEmailFromToken(token);
-                member = memberRepository.findByEmail(email)
-                        .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
-            } catch (Exception e) {
-                System.out.println("유효하지 않은 토큰: " + e.getMessage());
-            }
+        if (token == null) {
+            return new ApiResponse<>(0, "로그인이 필요합니다.", null);
         }
 
-        NoticePostRequestDto noticePostRequestDto = NoticePostRequestDto.builder()
-                .author(member)
-                .title(requestDto.getTitle())
-                .content(requestDto.getContent())
-                .imageFiles(requestDto.getImageFiles()) // 이미지 파일만 처리
-                .build();
+        if (!jwtTokenProvider.validateToken(token)) {
+            return new ApiResponse<>(0, "유효하지 않은 JWT 토큰입니다.", null);
+        }
 
-        NoticePostResponseDto savedNoticePost = noticePostService.saveNoticePost(noticePostRequestDto, token);
+        try {
+            String email = jwtTokenProvider.getEmailFromToken(token);
+            Member member = memberRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-        return new ApiResponse<>(1, "게시글 업로드 성공", savedNoticePost);
+            NoticePostRequestDto noticePostRequestDto = NoticePostRequestDto.builder()
+                    .author(member)
+                    .title(requestDto.getTitle())
+                    .content(requestDto.getContent())
+                    .imageFiles(requestDto.getImageFiles()) // 이미지 파일만 처리
+                    .build();
+
+            NoticePostResponseDto savedNoticePost = noticePostService.saveNoticePost(noticePostRequestDto, token);
+
+            return new ApiResponse<>(1, "게시글 업로드 성공", savedNoticePost);
+        } catch (Exception e) {
+            return new ApiResponse<>(0, "게시글 업로드 중 오류가 발생했습니다: " + e.getMessage(), null);
+        }
     }
-
-
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteNoticePost(@PathVariable Long id) {
