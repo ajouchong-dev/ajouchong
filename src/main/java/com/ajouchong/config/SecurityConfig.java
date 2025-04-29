@@ -56,7 +56,8 @@ public class SecurityConfig {
 
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
-                "https://www.ajouchong.com"
+                "https://www.ajouchong.com",
+                "https://admin.ajouchong.com"
         ));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
