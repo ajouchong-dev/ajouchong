@@ -14,11 +14,12 @@ public class OAuthAttributes {
     private String nameAttributeKey;
     private String name;
     private String email;
+    private String picture;
+    private String locale;
 
     public static OAuthAttributes of(String registrationId,
                                      String userNameAttributeName,
                                      Map<String, Object> attributes) {
-
         return ofGoogle(userNameAttributeName, attributes);
     }
 
@@ -27,6 +28,8 @@ public class OAuthAttributes {
         return OAuthAttributes.builder()
                 .name((String) attributes.get("name"))
                 .email((String) attributes.get("email"))
+                .picture((String) attributes.get("picture"))
+                .locale((String) attributes.get("locale"))
                 .attributes(attributes)
                 .nameAttributeKey(usernameAttributeName)
                 .build();
@@ -39,5 +42,4 @@ public class OAuthAttributes {
                 .role(MemberRole.STUDENT)
                 .build();
     }
-
 }
