@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -19,15 +20,20 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
+@Slf4j
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+
+    
     private final JwtTokenProvider jwtTokenProvider;
     private final MemberRepository memberRepository;
 
     @Override
-    protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain) throws ServletException, IOException {
-
+    protected void doFilterInternal(@NonNull HttpServletRequest request, 
+                                   @NonNull HttpServletResponse response, 
+                                   @NonNull FilterChain filterChain) throws ServletException, IOException {
+        
         String token = extractToken(request);
 
         if (token == null) {
@@ -36,15 +42,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         try {
-            // 토큰 만료 여부 확인
             if (jwtTokenProvider.isExpired(token)) {
+                log.warn("만료된 토큰으로 인증 시도: {}", token.substring(0, Math.min(token.length(), 20)) + "...");
                 sendErrorResponse(response, "Token has expired.");
                 return;
             }
 
-            // 인증 정보 설정
             setAuthentication(token);
+            log.debug("JWT 인증 성공: {}", request.getRequestURI());
         } catch (Exception e) {
+            log.warn("JWT 인증 실패: {} - {}", request.getRequestURI(), e.getMessage());
             sendErrorResponse(response, "Invalid token: " + e.getMessage());
             return;
         }
@@ -53,25 +60,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String extractToken(HttpServletRequest request) {
-        String authorization = request.getHeader("Authorization");
-        if (authorization != null && authorization.startsWith("Bearer ")) {
-            return authorization.substring(7);
+        String authorization = request.getHeader(JwtConstants.AUTHORIZATION_HEADER);
+        if (authorization != null && authorization.startsWith(JwtConstants.BEARER_PREFIX)) {
+            return authorization.substring(JwtConstants.BEARER_PREFIX.length());
         }
 
         return extractTokenFromCookies(request);
     }
 
     private String extractTokenFromCookies(HttpServletRequest request) {
-        if (request.getCookies() == null) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
             return null;
         }
 
-        for (Cookie cookie : request.getCookies()) {
-            if ("accessToken".equals(cookie.getName())) {
+        for (Cookie cookie : cookies) {
+            if (JwtConstants.ACCESS_TOKEN_COOKIE_NAME.equals(cookie.getName())) {
                 try {
                     return java.net.URLDecoder.decode(cookie.getValue(), StandardCharsets.UTF_8);
                 } catch (Exception e) {
-                    System.err.println("Invalid Cookie Format: " + e.getMessage());
+                    log.warn("쿠키 디코딩 실패: {}", e.getMessage());
                     return null;
                 }
             }
@@ -79,13 +87,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 
-
     private void setAuthentication(String token) {
         String email = jwtTokenProvider.getEmailFromToken(token);
         String role = jwtTokenProvider.getRoleFromToken(token);
 
         Member member = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
+                .orElseThrow(() -> {
+                    log.error("토큰의 이메일로 회원을 찾을 수 없음: {}", email);
+                    return new IllegalArgumentException("User not found: " + email);
+                });
 
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 member,
@@ -100,6 +110,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().write("{\"error\": \"Unauthorized\", \"message\": \"" + message + "\"}");
+        response.getWriter().write(String.format(JwtConstants.ERROR_RESPONSE_TEMPLATE, message));
     }
 }

@@ -8,9 +8,16 @@ import lombok.Setter;
 public class JwtAuthenticationResponse {
     private String tokenType = "Bearer";
     private String accessToken;
+    private String refreshToken;
+    private Long expiresIn;
 
     public JwtAuthenticationResponse(String accessToken) {
         this.accessToken = accessToken;
     }
 
+    public JwtAuthenticationResponse(String accessToken, String refreshToken, Long expiresIn) {
+        this.accessToken = accessToken;
+        this.refreshToken = refreshToken;
+        this.expiresIn = expiresIn;
+    }
 }

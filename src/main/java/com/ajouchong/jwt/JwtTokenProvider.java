@@ -21,54 +21,60 @@ import java.util.Map;
 public class JwtTokenProvider {
 
     private static SecretKey secretKey = null;
-    private static final long accessTokenValidity = 1000L * 60 * 60 * 24; // 1일
 
     public JwtTokenProvider(@Value("${jwt.secret}") String secret) {
-        byte[] keyBytes = Base64.getDecoder().decode(secret);
-        if (keyBytes.length < 32) { // 최소 길이 검증
-            throw new IllegalArgumentException("JWT Secret key는 최소 32 bytes이어야 합니다.");
+        validateAndInitializeSecretKey(secret);
+    }
+
+    private void validateAndInitializeSecretKey(String secret) {
+        try {
+            byte[] keyBytes = Base64.getDecoder().decode(secret);
+            if (keyBytes.length < JwtConstants.MIN_SECRET_KEY_LENGTH) {
+                throw new IllegalArgumentException("JWT Secret key는 최소 " + JwtConstants.MIN_SECRET_KEY_LENGTH + " bytes이어야 합니다.");
+            }
+            secretKey = Keys.hmacShaKeyFor(keyBytes);
+        } catch (IllegalArgumentException e) {
+            log.error("JWT Secret key 초기화 실패: {}", e.getMessage());
+            throw e;
         }
-        secretKey = Keys.hmacShaKeyFor(keyBytes);
     }
 
     public static String createAccessToken(Member member) {
         Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + accessTokenValidity);
+        Date expiryDate = new Date(now.getTime() + JwtConstants.ACCESS_TOKEN_VALIDITY);
 
         return Jwts.builder()
-                .setSubject("accessToken")
+                .setSubject(JwtConstants.ACCESS_TOKEN_SUBJECT)
                 .setClaims(createAccessTokenClaims(member))
                 .setExpiration(expiryDate)
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    private static Map<String, Object> createAccessTokenClaims (Member member) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("email", member.getEmail());
-        map.put("name", member.getName());
-        map.put("role", member.getRole());
-        return map;
+    private static Map<String, Object> createAccessTokenClaims(Member member) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put(JwtConstants.EMAIL_CLAIM, member.getEmail());
+        claims.put(JwtConstants.NAME_CLAIM, member.getName());
+        claims.put(JwtConstants.ROLE_CLAIM, member.getRole());
+        return claims;
     }
 
     public String createRefreshToken(Member member) {
         Date now = new Date();
-
-        long refreshTokenValidity = 1000L * 60 * 60 * 24 * 7;
-        Date expiryDate = new Date(now.getTime() + refreshTokenValidity);
+        Date expiryDate = new Date(now.getTime() + JwtConstants.REFRESH_TOKEN_VALIDITY);
 
         return Jwts.builder()
-                .setSubject("refreshToken")
+                .setSubject(JwtConstants.REFRESH_TOKEN_SUBJECT)
                 .setClaims(createRefreshTokenClaims(member))
                 .setExpiration(expiryDate)
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    private static Map<String, Object> createRefreshTokenClaims (Member member) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("email", member.getEmail());
-        return map;
+    private static Map<String, Object> createRefreshTokenClaims(Member member) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put(JwtConstants.EMAIL_CLAIM, member.getEmail());
+        return claims;
     }
 
     public boolean isExpired(String token) {
@@ -76,22 +82,24 @@ public class JwtTokenProvider {
             Date expiration = getClaimsFromToken(token).getExpiration();
             return expiration.before(new Date());
         } catch (ExpiredJwtException e) {
-            return true; // 만료된 경우 true 반환
+            log.debug("JWT 토큰이 만료되었습니다: {}", e.getMessage());
+            return true;
         } catch (JwtException e) {
-            return true; // 유효하지 않은 토큰도 만료된 것으로 처리
+            log.debug("유효하지 않은 JWT 토큰입니다: {}", e.getMessage());
+            return true;
         }
     }
 
     public String getEmailFromToken(String token) {
-        return getClaimsFromToken(token).get("email", String.class);
+        return getClaimsFromToken(token).get(JwtConstants.EMAIL_CLAIM, String.class);
     }
 
     public String getRoleFromToken(String token) {
-        return getClaimsFromToken(token).get("role", String.class);
+        return getClaimsFromToken(token).get(JwtConstants.ROLE_CLAIM, String.class);
     }
 
     public String getNameFromToken(String token) {
-        return getClaimsFromToken(token).get("name", String.class);
+        return getClaimsFromToken(token).get(JwtConstants.NAME_CLAIM, String.class);
     }
 
     private Claims getClaimsFromToken(String token) {
@@ -102,28 +110,29 @@ public class JwtTokenProvider {
                     .parseClaimsJws(token)
                     .getBody();
         } catch (ExpiredJwtException e) {
+            log.warn("토큰이 만료되었습니다: {}", e.getMessage());
             throw new InvalidJwtException("토큰이 만료되었습니다.");
         } catch (JwtException e) {
+            log.warn("유효하지 않은 JWT 토큰입니다: {}", e.getMessage());
             throw new InvalidJwtException("유효하지 않은 JWT 토큰입니다.");
         }
     }
 
     public void setJwtCookie(HttpServletResponse response, String accessToken, String refreshToken) {
-        Cookie accessCookie = new Cookie("accessToken", accessToken);
-        accessCookie.setHttpOnly(true);
-        accessCookie.setSecure(true); // HTTPS 환경에서만 전송
-        accessCookie.setPath("/");
-        accessCookie.setMaxAge(60 * 120); // 120분 후 만료
-        response.addCookie(accessCookie);
-
+        setCookie(response, JwtConstants.ACCESS_TOKEN_COOKIE_NAME, accessToken, JwtConstants.ACCESS_TOKEN_COOKIE_MAX_AGE);
+        
         if (refreshToken != null) {
-            Cookie refreshCookie = new Cookie("refreshToken", refreshToken);
-            refreshCookie.setHttpOnly(true);
-            refreshCookie.setSecure(true);
-            refreshCookie.setPath("/");
-            refreshCookie.setMaxAge(60 * 60 * 24 * 7); // 7일 후 만료
-            response.addCookie(refreshCookie);
+            setCookie(response, JwtConstants.REFRESH_TOKEN_COOKIE_NAME, refreshToken, JwtConstants.REFRESH_TOKEN_COOKIE_MAX_AGE);
         }
+    }
+
+    private void setCookie(HttpServletResponse response, String name, String value, int maxAge) {
+        Cookie cookie = new Cookie(name, value);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(maxAge);
+        response.addCookie(cookie);
     }
 
     public boolean validateToken(String token) {
@@ -134,29 +143,45 @@ public class JwtTokenProvider {
                     .parseClaimsJws(token);
             return true;
         } catch (ExpiredJwtException e) {
-            log.error("JWT 토큰이 만료되었습니다: {}", e.getMessage());
+            log.debug("JWT 토큰이 만료되었습니다: {}", e.getMessage());
         } catch (UnsupportedJwtException e) {
-            log.error("지원되지 않는 JWT 토큰입니다: {}", e.getMessage());
+            log.warn("지원되지 않는 JWT 토큰입니다: {}", e.getMessage());
         } catch (MalformedJwtException e) {
-            log.error("잘못된 JWT 서명입니다: {}", e.getMessage());
-        } catch (SignatureException e) {
-            log.error("JWT 서명 검증 실패: {}", e.getMessage());
+            log.warn("잘못된 JWT 서명입니다: {}", e.getMessage());
+        } catch (SecurityException e) {
+            log.warn("JWT 서명 검증 실패: {}", e.getMessage());
         } catch (JwtException e) {
-            log.error("유효하지 않은 JWT 토큰입니다: {}", e.getMessage());
+            log.warn("유효하지 않은 JWT 토큰입니다: {}", e.getMessage());
         }
         return false;
     }
 
     public String getRefreshTokenFromCookie(HttpServletRequest request) {
-        if (request.getCookies() == null) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
             return null;
         }
-        for (Cookie cookie : request.getCookies()) {
-            if ("refreshToken".equals(cookie.getName())) {
+        
+        for (Cookie cookie : cookies) {
+            if (JwtConstants.REFRESH_TOKEN_COOKIE_NAME.equals(cookie.getName())) {
                 return cookie.getValue();
             }
         }
         return null;
+    }
+
+    public void clearJwtCookies(HttpServletResponse response) {
+        clearCookie(response, JwtConstants.ACCESS_TOKEN_COOKIE_NAME);
+        clearCookie(response, JwtConstants.REFRESH_TOKEN_COOKIE_NAME);
+    }
+
+    private void clearCookie(HttpServletResponse response, String name) {
+        Cookie cookie = new Cookie(name, null);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
     }
 
     public static class InvalidJwtException extends RuntimeException {
