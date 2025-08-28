@@ -31,8 +31,7 @@ public class Member {
     public Member(GoogleUserDto googleUser) {
         this.email = googleUser.getEmail();
         this.name = googleUser.getName();
-        this.role = (googleUser.getRole() != null) ?
-                MemberRole.valueOf(googleUser.getRole()) : MemberRole.STUDENT;
+        this.role = MemberRole.STUDENT;
     }
 
 }

@@ -13,4 +13,5 @@ public class GoogleUserDto {
     private String picture;
     private String locale;
     private String sub;
+    private String role;
 }
