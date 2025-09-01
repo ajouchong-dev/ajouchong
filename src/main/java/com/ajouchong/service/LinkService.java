@@ -36,7 +36,7 @@ public class LinkService {
     }
     
     public List<LinkResponseDto> getAllLinks() {
-        List<Link> links = linkRepository.findAllByOrderByCreatedAtDesc();
+        List<Link> links = linkRepository.findAllByOrderByCreatedAtAsc();
         
         return links.stream()
                 .map(link -> LinkResponseDto.builder()

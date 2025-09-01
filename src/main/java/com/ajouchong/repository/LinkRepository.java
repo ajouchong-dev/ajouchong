@@ -9,5 +9,5 @@ import java.util.List;
 @Repository
 public interface LinkRepository extends JpaRepository<Link, Long> {
     
-    List<Link> findAllByOrderByCreatedAtDesc();
+    List<Link> findAllByOrderByCreatedAtAsc();
 }
