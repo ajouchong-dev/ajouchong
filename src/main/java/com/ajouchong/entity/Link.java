@@ -24,7 +24,7 @@ public class Link {
     @Column(nullable = false)
     private String title;
     
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String link;
     
     @Column(name = "created_at", nullable = false, updatable = false)

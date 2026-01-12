@@ -16,6 +16,7 @@ public class Partnership {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long psPostId;
 
+    @Column(length = 500)
     private String psTitle;
 
     @Column(columnDefinition = "TEXT")
@@ -23,7 +24,7 @@ public class Partnership {
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "partner_images", joinColumns = @JoinColumn(name = "psPostId"))
-    @Column(name = "image_url")
+    @Column(name = "image_url", columnDefinition = "TEXT")
     private List<String> imageUrls = new ArrayList<>(); // S3에 저장된 이미지 URL 리스트
 
     private int psUserLikeCnt = 0;

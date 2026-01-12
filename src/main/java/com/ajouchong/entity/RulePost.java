@@ -17,7 +17,9 @@ public class RulePost {
     private Long rPostId;
 
     private String rpTitle;
+    @Column(columnDefinition = "TEXT")
     private String rpContent;
+    @Column(columnDefinition = "TEXT")
     private String attachmentUrl;
 
     @Enumerated(EnumType.STRING)

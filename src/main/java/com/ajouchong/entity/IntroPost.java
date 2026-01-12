@@ -16,6 +16,7 @@ public class IntroPost {
     @Enumerated(EnumType.STRING)
     private IntroPostPageName page;
 
+    @Column(columnDefinition = "TEXT")
     private String imageUrl;
 
     @Column(nullable = false, updatable = false)

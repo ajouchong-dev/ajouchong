@@ -19,6 +19,7 @@ public class NoticePost {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long nPostId;
 
+    @Column(length = 500)
     private String npTitle;
 
     @Column(columnDefinition = "TEXT")
@@ -26,7 +27,7 @@ public class NoticePost {
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "noticePost_images", joinColumns = @JoinColumn(name = "nPostId"))
-    @Column(name = "image_url")
+    @Column(name = "image_url", columnDefinition = "TEXT")
     private List<String> imageUrls = new ArrayList<>(); // S3에 저장된 이미지 URL 리스트
 
     private int npUserLikeCnt = 0;
