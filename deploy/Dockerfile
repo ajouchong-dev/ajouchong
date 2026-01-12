@@ -1,4 +1,4 @@
-FROM docker.io/library/openjdk:21-slim AS build
+FROM eclipse-temurin:21-jdk AS build
 WORKDIR /app
 
 COPY . .
@@ -6,7 +6,7 @@ RUN apt update -y
 RUN apt install -y git
 RUN ./gradlew build -x test
 
-FROM docker.io/library/openjdk:21-slim
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /app/build/libs/*-SNAPSHOT.jar /app/app.jar
 
