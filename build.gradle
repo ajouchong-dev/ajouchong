@@ -46,6 +46,10 @@ dependencies {
 
 	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 	implementation 'org.springframework.cloud:spring-cloud-starter-aws:2.2.6.RELEASE'
+	
+	// JAXB 의존성 (Java 9+에서 필요)
+	implementation 'jakarta.xml.bind:jakarta.xml.bind-api'
+	implementation 'org.glassfish.jaxb:jaxb-runtime'
 }
 
 
