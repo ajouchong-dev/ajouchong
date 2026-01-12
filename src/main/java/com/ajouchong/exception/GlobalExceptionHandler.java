@@ -7,6 +7,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,6 +32,14 @@ public class GlobalExceptionHandler {
         errorData.put("errCode", "duplicate_email");
         errorData.put("errMsg", ex.getMessage());
         return ResponseEntity.badRequest().body(new ApiResponse<>(0, "중복된 이메일입니다.", errorData));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
+        Map<String, String> errorData = new HashMap<>();
+        errorData.put("errCode", "file_size_exceeded");
+        errorData.put("errMsg", "파일 크기가 최대 허용 크기(100MB)를 초과했습니다.");
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(new ApiResponse<>(0, "파일 크기 제한을 초과했습니다.", errorData));
     }
 
     @ExceptionHandler(Exception.class)

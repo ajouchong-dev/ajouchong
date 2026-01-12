@@ -5,10 +5,7 @@ import com.ajouchong.dto.request.QnaPostRequestDto;
 import com.ajouchong.dto.response.QnaPostResponseDto;
 import com.ajouchong.jwt.JwtTokenProvider;
 import com.ajouchong.service.QnaPostService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -82,17 +79,5 @@ public class QnaPostUserController {
         responseData.put("likeCount", likeCount);
 
         return new ApiResponse<>(1, postId + message, responseData);
-    }
-
-    private String extractTokenFromHeader(HttpServletRequest request) {
-        String bearerToken = request.getHeader(HttpHeaders.AUTHORIZATION);
-        log.info("Authorization Header: {}", bearerToken);
-
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-
-        log.warn("토큰이 존재하지 않거나 형식이 올바르지 않습니다.");
-        return null;
     }
 }

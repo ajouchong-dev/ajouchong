@@ -25,8 +25,10 @@ spring:
       mode: always
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
+      enabled: true
+      max-file-size: 100MB
+      max-request-size: 100MB
+      file-size-threshold: 0
   jackson:
     time-zone: Asia/Seoul
 
@@ -36,7 +38,7 @@ jwt:
 server:
   port: 8080
   tomcat:
-    max-swallow-size: 50MB
+    max-swallow-size: 100MB
 
 cloud:
   aws:

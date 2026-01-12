@@ -3,6 +3,7 @@ package com.ajouchong.service;
 import com.ajouchong.common.ApiResponse;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.UrlResource;
@@ -27,10 +28,40 @@ public class S3UploadService {
         String uniqueFilename = UUID.randomUUID() + "_" + originalFilename;
 
         ObjectMetadata metadata = new ObjectMetadata();
-        metadata.setContentLength(multipartFile.getSize());
-        metadata.setContentType(multipartFile.getContentType());
+        
+        // 파일 크기 설정 (필수) - 정확한 ContentLength 설정
+        long fileSize = multipartFile.getSize();
+        java.io.InputStream inputStream;
+        
+        if (fileSize <= 0) {
+            // getSize()가 -1을 반환하는 경우, 바이트 배열로 변환하여 정확한 크기 계산
+            byte[] fileBytes = multipartFile.getBytes();
+            fileSize = fileBytes.length;
+            inputStream = new java.io.ByteArrayInputStream(fileBytes);
+        } else {
+            // 정상적인 크기인 경우
+            inputStream = multipartFile.getInputStream();
+        }
+        
+        // ContentLength 메타데이터 설정 (필수)
+        metadata.setContentLength(fileSize);
+        
+        // ContentType 설정
+        String contentType = multipartFile.getContentType();
+        if (contentType == null || contentType.isEmpty()) {
+            contentType = "application/octet-stream"; // 기본값
+        }
+        metadata.setContentType(contentType);
 
-        amazonS3.putObject(bucket, uniqueFilename, multipartFile.getInputStream(), metadata);
+        // PutObjectRequest를 사용하여 메타데이터와 함께 업로드
+        PutObjectRequest putObjectRequest = new PutObjectRequest(
+                bucket, 
+                uniqueFilename, 
+                inputStream, 
+                metadata
+        );
+        amazonS3.putObject(putObjectRequest);
+
         return amazonS3.getUrl(bucket, uniqueFilename).toString();
     }
 
