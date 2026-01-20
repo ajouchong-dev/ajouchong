@@ -9,6 +9,8 @@ import com.ajouchong.jwt.JwtTokenProvider;
 import com.ajouchong.repository.MemberRepository;
 import com.ajouchong.repository.NoticeLikeRepository;
 import com.ajouchong.repository.NoticePostRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
@@ -30,6 +32,9 @@ public class NoticePostService {
     private final NoticePostRepository noticePostRepository;
     private final S3UploadService s3UploadService;
     private final NoticeLikeRepository noticeLikeRepository;
+    
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Transactional
     public NoticePostResponseDto saveNoticePost(NoticePostRequestDto requestDto, String token) throws IOException {
@@ -90,7 +95,71 @@ public class NoticePostService {
         if (!noticePostRepository.existsById(id)) {
             throw new RuntimeException(id + "번 게시글을 찾을 수 없습니다.");
         }
+        
+        // 게시글 삭제 전에 관련된 좋아요 데이터도 함께 삭제 (외래키 무결성 보장)
+        long likeCount = noticeLikeRepository.countByNoticePostId(id);
+        noticeLikeRepository.deleteByNoticePostId(id);
+        if (likeCount > 0) {
+            log.debug("게시글 {}번의 좋아요 {}개 삭제", id, likeCount);
+        }
+        
         noticePostRepository.deleteById(id);
+        // 시퀀스를 현재 테이블의 최대 ID 값으로 동기화하여 ID가 연속적으로 증가하도록 함
+        syncSequence();
+    }
+    
+    private void syncSequence() {
+        try {
+            // 현재 테이블의 최대 ID 값 조회
+            Long maxId = noticePostRepository.findMaxId().orElse(0L);
+            
+            // 시퀀스 이름을 동적으로 찾기
+            String sequenceName = noticePostRepository.getSequenceName()
+                    .orElse("notice_post_n_post_id_seq");
+            
+            // 시퀀스 이름에서 스키마 제거 (예: "public.notice_post_n_post_id_seq" -> "notice_post_n_post_id_seq")
+            if (sequenceName.contains(".")) {
+                sequenceName = sequenceName.substring(sequenceName.indexOf(".") + 1);
+            }
+            
+            // 시퀀스를 최대 ID 값으로 설정 (다음 값이 maxId + 1이 되도록)
+            String sql = "SELECT setval(?, ?, true)";
+            entityManager.createNativeQuery(sql)
+                    .setParameter(1, sequenceName)
+                    .setParameter(2, maxId)
+                    .getSingleResult();
+            
+            log.info("시퀀스 동기화 완료: 시퀀스={}, 최대 ID={}, 다음 ID={}", sequenceName, maxId, maxId + 1);
+        } catch (Exception e) {
+            log.error("시퀀스 동기화 실패: {}", e.getMessage(), e);
+            // 시퀀스 동기화 실패해도 삭제는 성공했으므로 예외를 던지지 않음
+            // 대신 다른 시퀀스 이름을 시도
+            try {
+                Long maxId = noticePostRepository.findMaxId().orElse(0L);
+                // 대체 시퀀스 이름 시도
+                String[] possibleSequences = {
+                    "notice_post_n_post_id_seq",
+                    "noticepost_n_post_id_seq",
+                    "notice_post_npostid_seq"
+                };
+                
+                for (String seqName : possibleSequences) {
+                    try {
+                        String sql = "SELECT setval(?, ?, true)";
+                        entityManager.createNativeQuery(sql)
+                                .setParameter(1, seqName)
+                                .setParameter(2, maxId)
+                                .getSingleResult();
+                        log.info("시퀀스 동기화 성공 (대체 시퀀스): {}, 다음 ID={}", seqName, maxId + 1);
+                        return;
+                    } catch (Exception ex) {
+                        log.debug("시퀀스 이름 '{}' 시도 실패: {}", seqName, ex.getMessage());
+                    }
+                }
+            } catch (Exception ex2) {
+                log.error("대체 시퀀스 동기화도 실패: {}", ex2.getMessage());
+            }
+        }
     }
 
     @Transactional
