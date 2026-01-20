@@ -31,6 +31,14 @@ public class LinkAdminController {
         return new ApiResponse<>(1, "링크 목록을 조회했습니다.", links);
     }
     
+    @PutMapping("/{id}")
+    public ApiResponse<LinkResponseDto> updateLink(@PathVariable Long id, 
+                                                   @Valid @RequestBody LinkRequestDto requestDto) {
+        LinkResponseDto response = linkService.updateLink(id, requestDto);
+        
+        return new ApiResponse<>(1, "링크가 성공적으로 수정되었습니다.", response);
+    }
+    
     @DeleteMapping("/{id}/delete")
     public ApiResponse<Void> deleteLink(@PathVariable Long id) {
         linkService.deleteLink(id);

@@ -56,6 +56,24 @@ public class LinkService {
     }
     
     @Transactional
+    public LinkResponseDto updateLink(Long id, LinkRequestDto requestDto) {
+        Link link = linkRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("링크를 찾을 수 없습니다. ID: " + id));
+        
+        link.setTitle(requestDto.getTitle());
+        link.setLink(requestDto.getLink());
+        
+        Link updatedLink = linkRepository.save(link);
+        
+        return LinkResponseDto.builder()
+                .id(updatedLink.getId())
+                .title(updatedLink.getTitle())
+                .link(updatedLink.getLink())
+                .createdAt(updatedLink.getCreatedAt())
+                .build();
+    }
+    
+    @Transactional
     public void deleteLink(Long id) {
         Link link = linkRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("링크를 찾을 수 없습니다. ID: " + id));
