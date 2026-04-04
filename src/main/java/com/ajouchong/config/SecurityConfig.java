@@ -34,7 +34,7 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/favicon.ico", "/img/**").permitAll()
-                        .requestMatchers("/api/admin").hasRole(MemberRole.ADMIN.name()) // ADMIN 권한 필요
+                        .requestMatchers("/api/admin/**").hasRole(MemberRole.ADMIN.name()) // ADMIN 권한 필요
 //                        .requestMatchers("/api/auth/profile").authenticated() // 인증 필요
                         .anyRequest().permitAll() // 그 외 요청 허용
                 );
@@ -60,7 +60,7 @@ public class SecurityConfig {
                 "https://admin.ajouchong.com"
         ));
 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Authorization", "Set-Cookie")); // 쿠키 반환 허용
         configuration.setAllowCredentials(true);

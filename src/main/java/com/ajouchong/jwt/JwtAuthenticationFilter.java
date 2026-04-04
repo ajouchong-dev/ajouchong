@@ -19,15 +19,28 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Set;
 
 @Slf4j
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final Set<String> PUBLIC_AUTH_PATHS = Set.of(
+            "/api/login/auth/oauth",
+            "/api/login/auth/logout"
+    );
 
     
     private final JwtTokenProvider jwtTokenProvider;
     private final MemberRepository memberRepository;
+
+    @Override
+    protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+        return PUBLIC_AUTH_PATHS.contains(request.getRequestURI());
+    }
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request, 
@@ -90,6 +103,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private void setAuthentication(String token) {
         String email = jwtTokenProvider.getEmailFromToken(token);
         String role = jwtTokenProvider.getRoleFromToken(token);
+        String authorityRole = role != null && role.startsWith("ROLE_") ? role : "ROLE_" + role;
 
         Member member = memberRepository.findByEmail(email)
                 .orElseThrow(() -> {
@@ -100,7 +114,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 member,
                 null,
-                Collections.singletonList(new SimpleGrantedAuthority(role))
+                Collections.singletonList(new SimpleGrantedAuthority(authorityRole))
         );
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
