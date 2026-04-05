@@ -13,12 +13,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping(value = "/api/login/auth", produces = "application/json")
 @RequiredArgsConstructor
 @Slf4j
 public class OAuthController {
+    private static final Set<String> ADMIN_EMAIL_ALLOWLIST = Set.of(
+            "toadsam@ajou.ac.kr",
+            "yeun787@ajou.ac.kr"
+    );
 
     private final OAuthService oAuthService;
     private final JwtTokenProvider jwtTokenProvider;
@@ -116,12 +121,24 @@ public class OAuthController {
     }
 
     private Member findOrCreateMember(GoogleUserDto googleUser) {
-        return memberRepository.findByEmail(googleUser.getEmail())
+        final String email = googleUser.getEmail();
+        final MemberRole targetRole = ADMIN_EMAIL_ALLOWLIST.contains(email) ? MemberRole.ADMIN : MemberRole.STUDENT;
+
+        return memberRepository.findByEmail(email)
+                .map(existingMember -> {
+                    if (existingMember.getRole() != targetRole) {
+                        existingMember.setRole(targetRole);
+                        Member updated = memberRepository.save(existingMember);
+                        log.info("회원 권한 동기화: {} -> {}", email, targetRole.name());
+                        return updated;
+                    }
+                    return existingMember;
+                })
                 .orElseGet(() -> {
                     Member newMember = new Member(googleUser);
-                    newMember.setRole(MemberRole.STUDENT);
+                    newMember.setRole(targetRole);
                     Member savedMember = memberRepository.save(newMember);
-                    log.info("새로운 회원 생성: {}", savedMember.getEmail());
+                    log.info("새로운 회원 생성: {} ({})", savedMember.getEmail(), targetRole.name());
                     return savedMember;
                 });
     }
