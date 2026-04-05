@@ -11,4 +11,5 @@ import java.util.Optional;
 public interface QnaLikeRepository extends JpaRepository<QnaLike, Long> {
     Optional<QnaLike> findByMemberAndQnaPostId(Member member, Long qnaPostId);
     long countByQnaPostId(Long qnaPostId);
+    void deleteByQnaPostId(Long qnaPostId);
 }

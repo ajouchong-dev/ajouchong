@@ -131,6 +131,7 @@ public class QnaPostService {
         QnaPost post = qnaPostRepository.findById(postId)
                 .orElseThrow(() -> new IllegalArgumentException(postId + "번 게시글을 찾을 수 없습니다."));
 
+        qnaLikeRepository.deleteByQnaPostId(postId);
         qnaPostRepository.delete(post);
     }
 
