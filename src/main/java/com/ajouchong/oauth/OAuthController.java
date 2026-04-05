@@ -20,7 +20,10 @@ import java.util.Set;
 @RequiredArgsConstructor
 @Slf4j
 public class OAuthController {
-    private static final Set<String> ADMIN_EMAIL_ALLOWLIST = Set.of("toadsam@ajou.ac.kr");
+    private static final Set<String> ADMIN_EMAIL_ALLOWLIST = Set.of(
+            "toadsam@ajou.ac.kr",
+            "yeun787@ajou.ac.kr"
+    );
 
     private final OAuthService oAuthService;
     private final JwtTokenProvider jwtTokenProvider;
