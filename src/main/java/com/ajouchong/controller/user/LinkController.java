@@ -16,7 +16,7 @@ public class LinkController {
     
     @GetMapping
     public ApiResponse<List<LinkResponseDto>> getAllLinks() {
-        List<LinkResponseDto> links = linkService.getAllLinks();
+        List<LinkResponseDto> links = linkService.getActiveLinks();
         
         return new ApiResponse<>(1, "링크 목록을 조회했습니다.", links);
     }

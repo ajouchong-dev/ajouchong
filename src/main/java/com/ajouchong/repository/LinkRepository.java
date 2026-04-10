@@ -12,6 +12,9 @@ import java.util.Optional;
 public interface LinkRepository extends JpaRepository<Link, Long> {
     
     List<Link> findAllByOrderByCreatedAtAsc();
+
+    @Query("SELECT l FROM Link l WHERE l.active = true OR l.active IS NULL ORDER BY l.createdAt ASC")
+    List<Link> findVisibleLinksOrderByCreatedAtAsc();
     
     @Query(value = "SELECT MAX(id) FROM links", nativeQuery = true)
     Optional<Long> findMaxId();

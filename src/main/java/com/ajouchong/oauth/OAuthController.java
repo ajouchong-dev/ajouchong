@@ -21,8 +21,24 @@ import java.util.Set;
 @Slf4j
 public class OAuthController {
     private static final Set<String> ADMIN_EMAIL_ALLOWLIST = Set.of(
-            "toadsam@ajou.ac.kr",
-            "yeun787@ajou.ac.kr"
+            "asdcvb23@ajou.ac.kr",
+            "mb7223@ajou.ac.kr",
+            "khw020928@ajou.ac.kr",
+            "komb0724@ajou.ac.kr",
+            "kch4802@ajou.ac.kr",
+            "kimpp11@ajou.ac.kr",
+            "lsie0078@ajou.ac.kr",
+            "pjs6167@ajou.ac.kr",
+            "jiho@ajou.ac.kr",
+            "yeun787@ajou.ac.kr",
+            "yhy8663@ajou.ac.kr",
+            "possibler@ajou.ac.kr",
+            "lala445@ajou.ac.kr",
+            "tldms8813@ajou.ac.kr",
+            "smax1106@ajou.ac.kr",
+            "wodnjs10224@ajou.ac.kr",
+            "dmsrl0958@ajou.ac.kr",
+            "toadsam@ajou.ac.kr"
     );
 
     private final OAuthService oAuthService;
