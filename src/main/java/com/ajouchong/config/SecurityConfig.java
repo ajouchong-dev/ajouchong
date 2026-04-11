@@ -1,4 +1,4 @@
-package com.ajouchong.config;
+﻿package com.ajouchong.config;
 
 import com.ajouchong.entity.enumClass.MemberRole;
 import com.ajouchong.jwt.JwtAuthenticationFilter;
@@ -7,6 +7,7 @@ import com.ajouchong.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -30,13 +31,12 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
-        // 접근 권한 설정
         http
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/favicon.ico", "/img/**").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole(MemberRole.ADMIN.name()) // ADMIN 권한 필요
-//                        .requestMatchers("/api/auth/profile").authenticated() // 인증 필요
-                        .anyRequest().permitAll() // 그 외 요청 허용
+                        .requestMatchers("/api/admin/**").hasRole(MemberRole.ADMIN.name())
+                        .anyRequest().permitAll()
                 );
 
         http
@@ -54,15 +54,16 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of(
+        configuration.setAllowedOriginPatterns(List.of(
                 "http://localhost:3000",
+                "https://ajouchong.com",
                 "https://www.ajouchong.com",
                 "https://admin.ajouchong.com"
         ));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("Authorization", "Set-Cookie")); // 쿠키 반환 허용
+        configuration.setExposedHeaders(List.of("Authorization", "Set-Cookie"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -71,5 +72,3 @@ public class SecurityConfig {
         return source;
     }
 }
-
-
