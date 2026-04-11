@@ -1,8 +1,11 @@
-package com.ajouchong.exception;
+﻿package com.ajouchong.exception;
 
 import com.ajouchong.common.ApiResponse;
+import com.ajouchong.oauth.OAuthException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -12,6 +15,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -23,7 +27,7 @@ public class GlobalExceptionHandler {
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
-        return ResponseEntity.badRequest().body(new ApiResponse<>(0, "유효성 검사에 실패했습니다.", errors));
+        return ResponseEntity.badRequest().body(new ApiResponse<>(0, "Validation failed.", errors));
     }
 
     @ExceptionHandler(DuplicateEmailException.class)
@@ -31,22 +35,47 @@ public class GlobalExceptionHandler {
         Map<String, String> errorData = new HashMap<>();
         errorData.put("errCode", "duplicate_email");
         errorData.put("errMsg", ex.getMessage());
-        return ResponseEntity.badRequest().body(new ApiResponse<>(0, "중복된 이메일입니다.", errorData));
+        return ResponseEntity.badRequest().body(new ApiResponse<>(0, "Duplicate email.", errorData));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<Map<String, String>>> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
         Map<String, String> errorData = new HashMap<>();
         errorData.put("errCode", "file_size_exceeded");
-        errorData.put("errMsg", "파일 크기가 최대 허용 크기(100MB)를 초과했습니다.");
-        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(new ApiResponse<>(0, "파일 크기 제한을 초과했습니다.", errorData));
+        errorData.put("errMsg", "File size exceeds the 100MB limit.");
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(new ApiResponse<>(0, "File size limit exceeded.", errorData));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
+        Map<String, String> errorData = new HashMap<>();
+        errorData.put("errCode", "invalid_request_body");
+        errorData.put("errMsg", "Invalid JSON request body.");
+        return ResponseEntity.badRequest().body(new ApiResponse<>(0, "Invalid request body.", errorData));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleIllegalArgumentException(IllegalArgumentException ex) {
+        Map<String, String> errorData = new HashMap<>();
+        errorData.put("errCode", "invalid_argument");
+        errorData.put("errMsg", ex.getMessage());
+        return ResponseEntity.badRequest().body(new ApiResponse<>(0, ex.getMessage(), errorData));
+    }
+
+    @ExceptionHandler(OAuthException.class)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleOAuthException(OAuthException ex) {
+        Map<String, String> errorData = new HashMap<>();
+        errorData.put("errCode", "oauth_error");
+        errorData.put("errMsg", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiResponse<>(0, ex.getMessage(), errorData));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Map<String, String>>> handleGeneralException(Exception ex) {
+        log.error("Unhandled exception", ex);
         Map<String, String> errorData = new HashMap<>();
         errorData.put("errCode", "unknown_error");
-        errorData.put("errMsg", "알 수 없는 오류가 발생했습니다.");
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ApiResponse<>(0, "서버 오류가 발생했습니다.", errorData));
+        errorData.put("errMsg", ex.getClass().getSimpleName() + ": " + ex.getMessage());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ApiResponse<>(0, "Server error occurred.", errorData));
     }
 }
