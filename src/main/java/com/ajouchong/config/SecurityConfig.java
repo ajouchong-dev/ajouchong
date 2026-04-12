@@ -1,4 +1,4 @@
-﻿package com.ajouchong.config;
+package com.ajouchong.config;
 
 import com.ajouchong.entity.enumClass.MemberRole;
 import com.ajouchong.jwt.JwtAuthenticationFilter;

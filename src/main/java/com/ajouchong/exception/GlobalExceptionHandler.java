@@ -1,4 +1,4 @@
-﻿package com.ajouchong.exception;
+package com.ajouchong.exception;
 
 import com.ajouchong.common.ApiResponse;
 import com.ajouchong.oauth.OAuthException;
