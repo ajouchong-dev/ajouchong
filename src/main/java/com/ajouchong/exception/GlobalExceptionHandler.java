@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -68,6 +69,14 @@ public class GlobalExceptionHandler {
         errorData.put("errCode", "oauth_error");
         errorData.put("errMsg", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiResponse<>(0, ex.getMessage(), errorData));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleNoResourceFoundException(NoResourceFoundException ex) {
+        Map<String, String> errorData = new HashMap<>();
+        errorData.put("errCode", "not_found");
+        errorData.put("errMsg", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(0, "Resource not found.", errorData));
     }
 
     @ExceptionHandler(Exception.class)
