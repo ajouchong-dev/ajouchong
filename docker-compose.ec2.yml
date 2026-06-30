@@ -2,6 +2,7 @@ services:
   database:
     image: postgres:14.12
     container_name: ajouchong-db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ajouchong
       POSTGRES_USER: chongchong
@@ -16,7 +17,11 @@ services:
   backend:
     image: ajouchong-local:release
     container_name: ajouchong-backend
+    restart: unless-stopped
     environment:
+      JAVA_OPTS: "-Xms128m -Xmx384m -XX:MaxMetaspaceSize=128m"
+      SPRING_JPA_SHOW_SQL: "false"
+      SPRING_JPA_PROPERTIES_HIBERNATE_SHOW_SQL: "false"
       SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/ajouchong
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
